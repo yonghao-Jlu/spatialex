@@ -1,4 +1,4 @@
-python==3.12
+python==3.8
 torch>=1.8.0
 cudnn>=10.2
 numpy==1.22.3
