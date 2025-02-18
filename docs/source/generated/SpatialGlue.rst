@@ -1,0 +1,6 @@
+﻿SpatialGlue
+===========
+
+.. automodule:: SpatialGlue
+
+   
