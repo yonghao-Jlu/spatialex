@@ -2,9 +2,9 @@
 
 # -- Project information
 
-project = 'SpatialGlue'
-copyright = '2023, Yahui Long'
-author = 'Yahui Long'
+project = 'SpatiaEx'
+copyright = '2025, Yonghao Liu'
+author = 'Yonghao Liu'
 
 release = '0.1'
 version = '0.1.0'
