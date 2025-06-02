@@ -51,5 +51,5 @@ Optionally, we have developed an easy-to-use Python package, which can be instal
 
 .. code-block:: python
 
-pip install SpatialEx
+   pip install SpatialEx
 
