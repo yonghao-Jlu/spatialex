@@ -3,6 +3,6 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "SpatialGlue"
+name = "spatialex"
 authors = [{name = "Yahui Long", email = "longyh@immunol.a-star.edu.sg"}]
 dynamic = ["version", "description"]

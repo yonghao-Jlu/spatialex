@@ -2,7 +2,7 @@
 
 # -- Project information
 
-project = 'SpatiaEx'
+project = 'SpatialEx'
 copyright = '2025, Yonghao Liu and Chuyao Wang'
 author = 'Yonghao Liu and Chuyao Wang'
 
@@ -15,8 +15,11 @@ extensions = [
     'sphinx.ext.duration',
     'sphinx.ext.doctest',
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon', # 支持使用 Google 风格的 docstrings
+    'sphinx.ext.viewcode', # 显示 [source] 链接
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
+    'sphinx_autodoc_typehints', # 把类型注解展示到文档里
     'nbsphinx'
 ]
 
@@ -48,3 +51,23 @@ html_theme = 'sphinx_rtd_theme'
 
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
+
+
+autosummary_generate = True      # 让 autosummary 自动生成页面
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False # 你用 Google 风格就把 NumPy 关掉即可
+napoleon_include_init_with_doc = True
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+    "inherited-members": True,
+    "special-members": "__init__",
+}
+autodoc_typehints = "description"  # 类型注解放到参数表里
+# 让 Sphinx 找到你的包（按你的真实包名与路径调整）
+import os, sys
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath("../../"))
+# 添加spatialex包目录到Python路径
+sys.path.insert(0, os.path.abspath("../../spatialex/"))
