@@ -47,10 +47,10 @@ Note that the installation of all packages included in file 'requirement.txt' ar
 
    python -m ipykernel install --user --name=SpatialEx
 
-Optionally, we have developed an easy-to-use Python package, which can be installed using the following command:
+We have developed an easy-to-use Python package, which can be installed using the following command:
 
 .. code-block:: python
 
    pip install SpatialEx
 
-We provide concrete examples in Tutorials 1 and 2 to illustrate this in detail.
+We provide concrete examples in Tutorials to illustrate this in detail.
