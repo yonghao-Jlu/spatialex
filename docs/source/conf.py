@@ -58,7 +58,7 @@ autodoc_mock_imports = [
     "numpy", "pandas", "matplotlib", "tqdm",
     "transformers", "cellpose", "cupy", "numba","timm","scanpy","anndata","scipy","scikit-learn","scikit-misc",
     # your own submodules (if you only show this one .py)
-    "spatialex.model", "spatialex.utils", "spatialex.preprocess",
+    "SpatialEx.model", "SpatialEx.utils", "SpatialEx.preprocess"
 ]
 
 # ---- HTML theme ----
@@ -72,8 +72,19 @@ epub_show_urls = "footnote"
 # ---- sys.path: add the REPO ROOT (parent of 'spatialex/') ----
 from pathlib import Path
 import sys
-ROOT = Path(__file__).resolve().parents[2]    # docs/source/ -> repo root
-sys.path.insert(0, str(ROOT))
+# ROOT = Path(__file__).resolve().parents[2]    # docs/source/ -> repo root
+# sys.path.insert(0, str(ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]         # repo_root
+PKG_PARENT = REPO_ROOT / "spatialex"                    # SpatialEx 的父目录
+sys.path.insert(0, str(PKG_PARENT))
+
+# 自检（注意大小写）
+try:
+    import SpatialEx
+    import SpatialEx.SpatialEx_pyG
+    print("Import OK: SpatialEx.SpatialEx_pyG (mocks may apply)")
+except Exception as e:
+    print("WARN import:", e)
 
 # quick import check (non-fatal if mocks kick in)
 try:
