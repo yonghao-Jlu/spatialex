@@ -3,8 +3,8 @@
 # -- Project information
 
 project = 'SpatialEx'
-copyright = '2025, Yonghao Liu and Chuyao Wang'
-author = 'Yonghao Liu and Chuyao Wang'
+copyright = '2025, Yonghao Liu, Chuyao Wang, and Xindi Dai'
+author = 'Yonghao Liu, Chuyao Wang, and Xindi Dai'
 
 release = '0.1'
 version = '0.1.0'
