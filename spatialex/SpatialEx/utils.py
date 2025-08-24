@@ -1,26 +1,71 @@
-import os
-import random
-from functools import partial
+# -*- coding: utf-8 -*-
+"""
+Utility functions for SpatialEx(+):
 
-from scipy.spatial import KDTree
+- Graph-based SSIM / correlation metrics and wrappers.
+- Moran's I computation on spatial expression.
+- Optimizer factory compatible with multiple torch optimizers.
+- Image encoder factory supporting ResNet/ViT/UNI/GigaPath/PhiKon.
+- Activation factory for small MLP heads.
+- Pseudo-spot generation & geometry helpers for Visium-like layouts.
+
+Public APIs most frequently consumed by trainers:
+:func:`Compute_metrics`, :func:`create_optimizer`, :func:`create_ImageEncoder`,
+:func:`Generate_pseudo_spot`.
+"""
+
+import os
+import timm
+import torch
+import random
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
-from torch import optim as optim
-import torchvision.models as models
 from tqdm import tqdm
-import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
-# from huggingface_hub import login
-import matplotlib.pyplot as plt
+import torch.nn as nn
+from scipy.spatial import KDTree
+from torch import optim as optim
+from transformers import ViTModel
+import torchvision.models as models
+
 
 DEFAULT_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
 
 def structural_similarity_on_graph_data(x, y, adj, K1=0.01, K2=0.03, alpha=1, beta=1, gamma=1, sigma=1.5,
                                         use_sample_covariance=True):
+    """
+    SSIM-like structural similarity defined on a graph's local neighborhoods.
+
+    Parameters
+    ----------
+    x, y : np.ndarray, shape (N, G)
+        Two cell × gene matrices to compare.
+    adj : scipy.sparse.spmatrix, shape (N, N)
+        Neighborhood aggregation operator.
+    K1, K2 : float, default=(0.01, 0.03)
+        Stabilization constants (scaled by data range).
+    alpha, beta, gamma : float, default=(1,1,1)
+        Exponents of luminance/contrast/structure terms.
+    sigma : float, default=1.5
+        Bandwidth used in structure term (kept for completeness).
+    use_sample_covariance : bool, default=True
+        Whether to use (n/(n-1)) factor in variance/covariance.
+
+    Returns
+    -------
+    s : np.ndarray, shape (G,)
+        Per-gene SSIM scores averaged across cells.
+
+    Raises
+    ------
+    ValueError
+        If any of K1/K2/K3/sigma are negative.
+
+    Notes
+    -----
+    This is a graph-aware generalization of classic SSIM, where local means
+    and (co)variances are computed by aggregating neighbors with `adj`.
+    """
     assert x.shape == y.shape
 
     K3 = K2 / np.sqrt(2)
@@ -40,7 +85,7 @@ def structural_similarity_on_graph_data(x, y, adj, K1=0.01, K2=0.03, alpha=1, be
 
     num_neighbor_list = adj.getnnz(axis=1)
     if use_sample_covariance:
-        cov_norm = num_neighbor_list / (num_neighbor_list - 1 + 1e-6)  # 计算方差的norm
+        cov_norm = num_neighbor_list / (num_neighbor_list - 1 + 1e-6)
     else:
         cov_norm = 1 / (num_neighbor_list + 1e-6)
     cov_norm = cov_norm[:, np.newaxis]
@@ -65,6 +110,31 @@ def structural_similarity_on_graph_data(x, y, adj, K1=0.01, K2=0.03, alpha=1, be
 
 
 def Compute_metrics(x, x_prime, metric='cosine_similarity', reduce='mean', graph=None):
+    """
+    Compute common evaluation metrics on gene-wise vectors.
+
+    Parameters
+    ----------
+    x, x_prime : np.ndarray, shape (N, G)
+        Ground-truth and prediction matrices (cells × genes).
+    metric : {'cosine_similarity','rmse','pcc','ssim','cmd'}, default='cosine_similarity'
+        Metric type. SSIM requires `graph`; CMD compares correlation structures.
+    reduce : {'mean','sum','median'}, default='mean'
+        Reduction over genes after per-gene scores are computed.
+    graph : scipy.sparse.spmatrix or None
+        Needed for 'ssim' to aggregate local neighborhoods.
+
+    Returns
+    -------
+    scores : tuple[np.ndarray, float]
+        (per-gene scores, reduced scalar) according to `reduce`.
+
+    Notes
+    -----
+    - For large N, SSIM/CMD are computed in chunks to avoid OOM.
+    - CMD is 1 - (Frobenius inner product of correlation matrices) /
+      (product of Fro norms), hence lower is better.
+    """
     metric = metric.lower()
     if metric == 'cosine_similarity':
         dot_product = np.sum(x_prime * x, axis=0)
@@ -107,9 +177,9 @@ def Compute_metrics(x, x_prime, metric='cosine_similarity', reduce='mean', graph
         if x.shape[1] < 10000:
             corr_pred = np.corrcoef(x_prime, dtype=np.float32, rowvar=0)
             corr_true = np.corrcoef(x, dtype=np.float32, rowvar=0)
-            x = np.trace(corr_pred.dot(corr_true))
-            y = np.linalg.norm(corr_pred, 'fro') * np.linalg.norm(corr_true, 'fro')
-            metric = 1 - x / (y + 1e-8)
+            x_ = np.trace(corr_pred.dot(corr_true))
+            y_ = np.linalg.norm(corr_pred, 'fro') * np.linalg.norm(corr_true, 'fro')
+            metric = 1 - x_ / (y_ + 1e-8)
         else:
             idx_list = list(range(0, x.shape[1]))
             random.shuffle(idx_list)
@@ -141,6 +211,23 @@ def Compute_metrics(x, x_prime, metric='cosine_similarity', reduce='mean', graph
 
 
 def Compute_MoransI(adata, adj, store_key=None):
+    """
+    Compute Moran's I spatial autocorrelation for each gene.
+
+    Parameters
+    ----------
+    adata : :class:`anndata.AnnData`
+        Expression matrix in ``.X`` (cells × genes).
+    adj : scipy.sparse.spmatrix, shape (N, N)
+        Spatial adjacency.
+    store_key : str or None
+        If provided, store per-gene Moran's I in ``.var[store_key]``.
+
+    Returns
+    -------
+    morans_I : np.ndarray, shape (G,)
+        Moran's I per gene.
+    """
     n = adata.n_obs
     x_bar = np.mean(adata.X, axis=0)
     x = adata.X - x_bar
@@ -154,36 +241,33 @@ def Compute_MoransI(adata, adj, store_key=None):
     return MoransI
 
 
-def Plot_imputed_gene(adata, gene_name, downsample=50000, save_path=None, dpi=300):
-    fig, axs = plt.subplots(1, 2, figsize=(75, 20), gridspec_kw={'wspace': 0.01})
-    if downsample > 0 and downsample < adata.n_obs:
-        adata = adata[np.random.permutation(np.arange(adata.n_obs))[:downsample]]  # 下采样数量
-    vmax = adata[:, gene_name].X.max()
-    sc1 = axs[0].scatter(adata.obs['x_centroid'], adata.obs['y_centroid'], c=adata[:, gene_name].X, cmap='viridis',
-                         vmin=0, vmax=vmax, s=30)
-    axs[0].axis('equal')
-    axs[0].axis('off')
-    axs[0].set_title(gene_name + ' Ground Truth', fontsize=40)
-
-    adata.X = adata.obsm['x_prime']
-    sc2 = axs[1].scatter(adata.obs['x_centroid'], adata.obs['y_centroid'], c=adata[:, gene_name].X, cmap='viridis',
-                         vmin=0, vmax=vmax, s=30)
-    # plt.colorbar(sc2, label='Expression level')
-    axs[1].axis('equal')
-    axs[1].axis('off')
-    axs[1].set_title(gene_name + ' Imputed', fontsize=40)
-
-    cbar_ax = fig.add_axes([0.9, 0.25, 0.02, 0.5])  # 调整位置 [left, bottom, width, height]
-    cbar = fig.colorbar(sc2, cax=cbar_ax)
-    cbar.set_label('Expression level', fontsize=40)  # 设置颜色条标签和字体大小
-    cbar.ax.tick_params(labelsize=30)
-
-    if isinstance(save_path, str):
-        plt.savefig(save_path + '/' + gene_name + '.png', dpi=dpi)
-    plt.show()
-
-
 def create_optimizer(opt, model, lr, weight_decay, get_num_layer=None, get_layer_scale=None):
+    """
+    Construct a torch optimizer for one or multiple modules.
+
+    Parameters
+    ----------
+    opt : str
+        One of {'adam','adamw','adadelta','radam','sgd'} (case-insensitive).
+    model : nn.Module or list[nn.Module]
+        Model(s) whose parameters will be optimized.
+    lr : float
+        Learning rate.
+    weight_decay : float
+        Weight decay (L2).
+    get_num_layer, get_layer_scale : callable or None
+        Reserved for layer-wise LR/decay (unused here, kept for extension).
+
+    Returns
+    -------
+    optimizer : torch.optim.Optimizer
+        Configured optimizer instance.
+
+    Raises
+    ------
+    AssertionError
+        If `opt` is not one of the supported choices.
+    """
     opt_lower = opt.lower()
 
     if isinstance(model, list):
@@ -214,52 +298,92 @@ def create_optimizer(opt, model, lr, weight_decay, get_num_layer=None, get_layer
 
 
 def create_ImageEncoder(model_name='resnet50', pretrained=True, frozen=True):
+    """
+    Create an image encoder backbone.
+
+    Supported backbones
+    -------------------
+    - torchvision: ``resnet50``, ``resnet101``, ``resnet152``,
+      ViT variants (``vit_b_16``, ``vit_b_32``, ``vit_l_16``, ``vit_l_32``, ``vit_h_14``)
+    - UNI (ViT-L/16) via timm (weights expected under ``./image_encoder``)
+    - GigaPath via timm hub: ``prov-gigapath`` / ``gigapath``
+    - PhiKon via HuggingFace ``owkin/phikon``
+
+    Parameters
+    ----------
+    model_name : str, default='resnet50'
+        Backbone key (case-insensitive).
+    pretrained : bool, default=True
+        Load pretrained weights whenever available.
+    frozen : bool, default=True
+        If True, put encoder in eval mode and freeze parameters.
+
+    Returns
+    -------
+    model : nn.Module
+        Feature extractor (no classification head).
+
+    Raises
+    ------
+    ValueError
+        If `model_name` is unknown.
+
+    Notes
+    -----
+    UNI expects a local file ``./image_encoder/pytorch_model.bin`` to be present.
+    """
     model_name = model_name.lower()
     if model_name == 'resnet50':
-        model = models.resnet50(pretrained=True)
-        model = torch.nn.Sequential(*(list(model.children())[:-1]))  # 不要分类头
+        base = models.resnet50(pretrained=pretrained)
+        model = torch.nn.Sequential(*(list(base.children())[:-1]))
     elif model_name == 'resnet101':
-        model = models.resnet101(pretrained=True)
-        model = torch.nn.Sequential(*(list(model.children())[:-1]))
+        base = models.resnet101(pretrained=pretrained)
+        model = torch.nn.Sequential(*(list(base.children())[:-1]))
     elif model_name == 'resnet152':
-        model = models.resnet152(pretrained=True)
-        model = torch.nn.Sequential(*(list(model.children())[:-1]))
-    elif model_name == 'vit_b_16':
-        model = models.vit_b_16(pretrained=True)
-    elif model_name == 'vit_b_32':
-        model = models.vit_b_32(pretrained=True)
-    elif model_name == 'vit_l_16':
-        model = models.vit_l_16(pretrained=True)
-
-    elif model_name == 'vit_l_32':
-        model = models.vit_l_32(pretrained=True)
-
-    elif model_name == 'vit_h_14':
-        model = models.vit_h_14(pretrained=True)
-
+        base = models.resnet152(pretrained=pretrained)
+        model = torch.nn.Sequential(*(list(base.children())[:-1]))
+    elif model_name in ['vit_b_16', 'vit_b_32', 'vit_l_16', 'vit_l_32', 'vit_h_14']:
+        model = getattr(models, model_name)(pretrained=pretrained)
     elif model_name == 'uni':
-
-        local_dir = os.path.join(DEFAULT_DATA_DIR,
-                                 "pyFile/Xenium_modality_impute/inputs/vit_large_patch16_224.dinov2.uni_mass100k/")  # "../assets/ckpts/vit_large_patch16_224.dinov2.uni_mass100k/"
-        # os.makedirs(local_dir, exist_ok=True)  # create directory if it does not exist
-        # # hf_hub_download("MahmoodLab/UNI", filename="pytorch_model.bin", local_dir=local_dir, force_download=True)
+        local_dir = './image_encoder/'
         model = timm.create_model(
-            "vit_large_patch16_224", img_size=224, patch_size=16, init_values=1e-5, num_classes=0, dynamic_img_size=True
+            "vit_large_patch16_224", img_size=224, patch_size=16,
+            init_values=1e-5, num_classes=0, dynamic_img_size=True
         )
-        model.load_state_dict(torch.load(os.path.join(local_dir, "pytorch_model.bin"), map_location="cpu"), strict=True)
-
-    elif model_name == 'conch':
-        model = None
+        model.load_state_dict(
+            torch.load(f"{local_dir}/pytorch_model.bin", map_location="cpu"),
+            strict=True
+        )
+    elif model_name in ['prov-gigapath', 'gigapath']:
+        model = timm.create_model("hf_hub:prov-gigapath/prov-gigapath", pretrained=True)
+    elif model_name == 'phikon':
+        model = ViTModel.from_pretrained("owkin/phikon", add_pooling_layer=False)
 
     else:
-        assert False
+        raise ValueError(f"Unsupported model_name: {model_name}")
 
     if frozen:
         model.eval()
+        for param in model.parameters():
+            param.requires_grad = False
+
     return model
 
 
 def create_activation(name):
+    """
+    Small activation factory.
+
+    Parameters
+    ----------
+    name : {'relu','elu','leaky_relu','prelu'}
+        Activation key (case-insensitive).
+
+    Returns
+    -------
+    act : nn.Module or None
+        Activation module or None (unknown name).
+    """
     name = name.lower()
     if name == 'relu':
         return nn.ReLU()
@@ -273,23 +397,40 @@ def create_activation(name):
         return None
 
 
-def sparse_mx_to_torch_sparse_tensor(sparse_mx, device='cpu'):
-    """Convert a scipy sparse matrix to a torch sparse tensor."""
-    sparse_mx = sparse_mx.tocoo().astype(np.float32)
-    indices = torch.from_numpy(np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
-    values = torch.from_numpy(sparse_mx.data)
-    shape = torch.Size(sparse_mx.shape)
-    return torch.sparse.FloatTensor(indices, values, shape).to(device)
-
-
 def Generate_pseudo_spot(adata, key=['x_centroid', 'y_centroid'], platform='visium', all_in=False):
-    # print('Please make sure that the selected coordinates start from 0 and have units in um.')
-    # print('It is recommended that the count expression be provided in adata.')
+    """
+    Assign each cell to its nearest Visium-like spot and aggregate counts.
+
+    Parameters
+    ----------
+    adata : :class:`anndata.AnnData`
+        Must include coordinates in ``.obs[key]`` and expression in ``.X``.
+    key : list[str], default=['x_centroid','y_centroid']
+        Column names for cell coordinates.
+    platform : {'visium'}, default='visium'
+        Only 'visium' is currently supported.
+    all_in : bool, default=False
+        If True, include all cells (even far ones) in a nearest spot.
+
+    Returns
+    -------
+    spot_coor : pandas.DataFrame, shape (N_spots, 2)
+        Spot coordinates labeled as (x_centroid, y_centroid).
+    spot_count : pandas.DataFrame, shape (N_spots, G)
+        Aggregated counts per spot (genes as columns).
+    adata : :class:`anndata.AnnData`
+        With ``.obs['spot']`` remapped to [0..N_spots-1].
+
+    Notes
+    -----
+    Visium spots are generated on a hex grid with 100-pixel spacing in x and
+    100*sqrt(3) in y, with a half-grid offset to mimic the honeycomb layout.
+    """
     x, y = adata.obs[key[0]], adata.obs[key[1]]
     spatial = np.vstack([x, y]).T
 
     platform = platform.lower()
-    if platform == 'visium':  # 定义 x 和 y 的范围
+    if platform == 'visium':
         x_interval = 100
         y_interval = 100 * np.sqrt(3)
     else:
@@ -314,19 +455,19 @@ def Generate_pseudo_spot(adata, key=['x_centroid', 'y_centroid'], platform='visi
 
     spot1 = np.vstack([spot_x1, spot_y1]).T
     spot2 = np.vstack([spot_x2, spot_y2]).T
-    spot = np.vstack([spot1, spot2])  # 到这步是生成了矩形点阵
+    spot = np.vstack([spot1, spot2])
 
     tree = KDTree(spot)
     distances, indices = tree.query(spatial)
     if all_in:
         in_spot = np.array([True] * adata.n_obs)
     else:
-        in_spot = distances < 55 / 2.0  # 这里没有包含细胞的spot自动就会被删除掉
+        in_spot = distances < 55 / 2.0
     print(in_spot.sum(), ' cells are included in its nearest spot!')
     indices[~in_spot] = -1
-    adata.obs['spot'] = indices  # 存储对应的spot的id
+    adata.obs['spot'] = indices
 
-    count = pd.DataFrame(adata[in_spot].X)  # 聚合得到每个spot的基因表达
+    count = pd.DataFrame(adata[in_spot].X)
     count.columns = adata.var_names
     count['spot_id'] = indices[in_spot]
     spot_count = count.groupby('spot_id').sum()
@@ -345,6 +486,25 @@ def Generate_pseudo_spot(adata, key=['x_centroid', 'y_centroid'], platform='visi
 
 
 def Estimate_boundary(x, y, x_bin=250, deg=4):
+    """
+    Estimate a smooth boundary curve y=f(x) from binned maxima.
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Coordinates of points.
+    x_bin : int, default=250
+        Bin width in x for maxima extraction.
+    deg : int, default=4
+        Polynomial degree for least squares fit.
+
+    Returns
+    -------
+    poly : np.poly1d
+        Fitted polynomial.
+    y_estimate : np.ndarray
+        y values predicted by the polynomial at inputs x.
+    """
     print('Estimating y boundary')
     bin_idx_list = x // x_bin
     max_list_y = []
@@ -352,7 +512,7 @@ def Estimate_boundary(x, y, x_bin=250, deg=4):
     for bin_idx in tqdm(np.arange(bin_idx_list.max())):
         selection = bin_idx_list == bin_idx
         if selection.sum() == 0:
-            continue;
+            continue
         y_bin, x_bin = y[selection], x[selection]
         ymax_idx = np.argmax(y_bin)
         max_list_y.append(y_bin[ymax_idx])
@@ -365,6 +525,24 @@ def Estimate_boundary(x, y, x_bin=250, deg=4):
 
 
 def Estimate_gap(adata, array_key_prefix='array_', image_key='spatial'):
+    """
+    Estimate median horizontal spacing ('gap') between neighboring spots.
+
+    Parameters
+    ----------
+    adata : :class:`anndata.AnnData`
+        Must include array row/col indices in ``obs[f'{array_key_prefix}row']``
+        and image coordinates in ``.obsm[image_key]``.
+    array_key_prefix : str, default='array_'
+        Prefix used for array index columns.
+    image_key : str, default='spatial'
+        Key in ``.obsm`` with image coordinates.
+
+    Returns
+    -------
+    gap : float
+        Median horizontal gap (in the same units as image coordinates).
+    """
     num_array_col = np.unique(adata.obs[array_key_prefix + 'row']).shape[0]
     random_col_list = np.unique(adata.obs[array_key_prefix + 'row'])[np.random.randint(0, num_array_col, 10)]
     gap_list = []

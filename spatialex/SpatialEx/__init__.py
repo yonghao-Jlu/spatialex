@@ -1,34 +1,29 @@
+# -*- coding: utf-8 -*-
 """
-SpatialEx Package
+SpatialEx package for spatial transcriptomics analysis.
 
-A comprehensive package for spatial transcriptomics analysis using graph neural networks.
+This package provides tools for histology-to-omics translation using
+hypergraph neural networks on spatial transcriptomics data.
 """
 
-# Import main classes and functions
-from .SpatialEx_pyG import Train_SpatialEx, Train_SpatialExP
-from .model import Model, Regression, Model_vanilla, Predictor_spot
-from .utils import (
-    create_optimizer, 
-    Compute_metrics, 
-    create_ImageEncoder,
-    structural_similarity_on_graph_data
-)
-from . import preprocess as pp
+from . import model
+from . import preprocess
+from . import utils
 
-# Version information
-__version__ = "1.0.0"
+# Import main training classes
+try:
+    from .SpatialEx_pyG import Train_SpatialEx, Train_SpatialExP, Train_SpatialExP_Big
+except ImportError as e:
+    # Handle import errors gracefully for documentation generation
+    import warnings
+    warnings.warn(f"Could not import SpatialEx_pyG: {e}")
 
-# Package level imports
+__version__ = "0.1.0"
 __all__ = [
+    "model",
+    "preprocess", 
+    "utils",
     "Train_SpatialEx",
     "Train_SpatialExP", 
-    "Model",
-    "Regression",
-    "Model_vanilla",
-    "Predictor_spot",
-    "create_optimizer",
-    "Compute_metrics",
-    "create_ImageEncoder",
-    "structural_similarity_on_graph_data",
-    "pp"
+    "Train_SpatialExP_Big"
 ]
