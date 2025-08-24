@@ -70,7 +70,7 @@ autodoc_default_options = {
 
 autodoc_mock_imports = [
     # 第三方大件
-    "torch", "torchvision", "torchaudio",
+    "torch", "torchvision", "torchaudio","transformers",
     "numpy", "pandas", "tqdm", "matplotlib",
     "cellpose", "cellposesam", "cupy", "numba",
     # 包内的子模块（如果你只想展示一个 .py，就 mock 其他模块）
