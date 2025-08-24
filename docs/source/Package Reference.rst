@@ -1,7 +1,7 @@
 Package Reference
 =================
 
-.. automodule:: SpatialEx.SpatialEx_pyG
+.. automodule:: spatialex.SpatialEx_pyG
    :members:
    :undoc-members:
    :show-inheritance:
