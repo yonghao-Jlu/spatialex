@@ -80,6 +80,7 @@ autodoc_mock_imports = [
 # nbsphinx
 nbsphinx_execute = "never"
 # myst-nb
+nb_execution_mode = "off"
 # nb_execution_mode = "off"         # 新版
 # myst_nb_execute_notebooks = "off"  # 旧版
 
