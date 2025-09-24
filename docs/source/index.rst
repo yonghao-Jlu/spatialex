@@ -14,7 +14,7 @@ High-Parameter Spatial Multi-Omics through Histology-Anchored Integration
    :caption: Contents:
    
    Installation
-   Package Reference
+   API
    Tutorial 1 SpatialEx Translates Histology to Omics at Single-Cell Resolution
    Tutorial 2 SpatialEx+ Enables Larger Panel Spatial Analysis through Panel Diagonal Integration
    Tutorial 3 Scalability on Million-Cell Tissue Sections
