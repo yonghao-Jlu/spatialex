@@ -1,4 +1,4 @@
-Package Reference
+API
 =================
 
 .. automodule:: SpatialEx.SpatialEx_pyG
