@@ -24,7 +24,7 @@ Note that the installation of all packages included in file 'requirement.txt' ar
 
    #All the packages are included in the requirements.txt file
 
-   pip install requirements.txt
+   pip install -r requirements.txt
 
    #Several important packages are listed below in case you prefer not to install too many packages.
 
