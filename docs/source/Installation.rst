@@ -27,6 +27,7 @@ Note that the installation of all packages included in file 'requirement.txt' ar
    pip install -r requirements.txt
 
    #Several important packages are listed below in case you prefer not to install too many packages.
+   #We recommend installing the above Python packages one by one to avoid potential errors.
 
    anndata==0.8.0
    scanpy==1.9.3
@@ -35,7 +36,7 @@ Note that the installation of all packages included in file 'requirement.txt' ar
    cellpose==3.0.10
    scikit-image==0.21.0
    scikit-learn==1.3.2
-   scikit-mise==0.2.0
+   scikit-misc==0.2.0
    torch==2.3.1
    huggingface-hub==0.24.6
    timm==1.0.8
