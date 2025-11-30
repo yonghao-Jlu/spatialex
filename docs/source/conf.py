@@ -68,6 +68,8 @@ html_theme_options = {
     'collapse_navigation': True,   # 点击加号才展开
     'sticky_navigation': True,     # 侧边栏随滚动条移动
     'navigation_depth': 4,         # 允许渲染的最大深度，配合 index.rst 控制
+    'collapse_navigation': True,
+    'navigation_depth': 2,  # 强制导航栏只渲染到第2级（也就是文件名这一级）
 }
 
 # ---- Source suffix ----
