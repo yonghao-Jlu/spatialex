@@ -12,7 +12,8 @@ High-Parameter Spatial Multi-Omics through Histology-Anchored Integration
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials
-   
+   :titlesonly:
+
    Installation
    API
    Tutorial 1 SpatialEx Translates Histology to Omics at Single-Cell Resolution_v2
@@ -21,7 +22,7 @@ High-Parameter Spatial Multi-Omics through Histology-Anchored Integration
    Tutorial 4 SpatialEx+ Enables Spatial Multi-omics through Omics Diagonal Integration (transcriptomics-proteomics)
    Tutorial 5 SpatialEx+ Enables Spatial Multi-omics through Omics Diagonal Integration (transcriptomics-metabolomics)
    Tutorial 6 SpatialEx+ is Robust Even When There is Weak or No Overlap between Slices
-   
+
 .. image:: ../Figures/figure.jpg
    :width: 1600 
 
