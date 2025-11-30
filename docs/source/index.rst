@@ -12,7 +12,6 @@ High-Parameter Spatial Multi-Omics through Histology-Anchored Integration
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials
-   :titlesonly:
 
    Installation
    API
