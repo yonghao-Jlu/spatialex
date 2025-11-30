@@ -64,11 +64,6 @@ autodoc_mock_imports = [
 # ---- HTML theme ----
 html_theme = "sphinx_rtd_theme"
 
-html_theme_options = {
-    # ...existing options...
-    "navigation_depth": 1,
-}
-
 # ---- Source suffix ----
 source_suffix = ".rst"
 templates_path = ["_templates"]
