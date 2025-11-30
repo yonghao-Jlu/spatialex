@@ -68,6 +68,7 @@ html_theme_options = {
     'collapse_navigation': True,   # 点击加号才展开
     'sticky_navigation': True,     # 侧边栏随滚动条移动
     'navigation_depth': 2,         # 允许渲染的最大深度，配合 index.rst 控制
+    'titles_only': True          # 关键修改2：显式开启“只显示标题”模式，强制隐藏子章节
 }
 
 # ---- Source suffix ----
