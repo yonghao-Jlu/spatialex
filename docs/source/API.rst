@@ -1,7 +1,7 @@
 API
 =================
 
-.. automodule:: SpatialEx.SpatialEx_pyG
+.. automodule:: SpatialEx.SpatialEx
    :members:
    :undoc-members:
    :show-inheritance:
