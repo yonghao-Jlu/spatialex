@@ -314,7 +314,7 @@ def Extract_HE_patches_representaion(he_patches, store_key=None, adata=None, ski
 
 
 def Build_graph(x, weighted=False, symmetric=False, graph_type='radius', metric='euclidean', self_loop=True,
-                radius=50, num_neighbors=50, apply_normalize='none', sigma=0.01, return_type='coo'):
+                radius=50, num_neighbors=50, apply_normalize='none', sigma=0.01, type='coo'):
     '''
     graph_type: str,    'radius' will connect the nodes within the radius(50 by default), 
                         'knn' will connect the num_neighbors(50 by default) nearest neighbors
@@ -380,17 +380,17 @@ def Build_graph(x, weighted=False, symmetric=False, graph_type='radius', metric=
         D = sp.diags(np.power(D.astype(float), -0.5), offsets=0, format='coo')
         adj = D @ adj @ D
 
-    if return_type == 'coo':
+    if type == 'coo':
         if not isinstance(adj, sp.coo_matrix):
             adj = adj.tocoo()
-    elif return_type == 'csr':
+    elif type == 'csr':
         if not isinstance(adj, sp.csr_matrix):
             adj = adj.tocsr()
     return adj
 
 
 def Build_graph_for_high_dim_feat(x, weighted=False, num_neighbors=50, device='cpu', batch_size=4096,
-                                  apply_normalize=False, return_type='coo'):
+                                  apply_normalize=False, type='coo'):
     '''Use GPU to compute cosine similarity and build knn graph'''
 
     print('======================== Build adj on high dimensional features =========================')
@@ -432,29 +432,29 @@ def Build_graph_for_high_dim_feat(x, weighted=False, num_neighbors=50, device='c
         D = sp.diags(np.power(D.astype(float), -0.5), offsets=0, format='coo')
         adj = D @ adj @ D
 
-    if return_type == 'coo':
+    if type == 'coo':
         if not isinstance(adj, sp.coo_matrix):
             adj = adj.tocoo()
-    elif return_type == 'crs':
+    elif type == 'crs':
         if not isinstance(adj, sp.csr_matrix):
             adj = adj.tocsr()
     return adj
 
 
 def Build_hypergraph(x, metric='euclidean', graph_type='knn', radius=50, num_neighbors=50,
-                     self_loop=True, normalize=False, edge_weight=None, return_type='coo'):
+                     self_loop=True, normalize=False, edge_weight=None, type='coo'):
     H = Build_graph(x, metric=metric, graph_type=graph_type, radius=radius, num_neighbors=num_neighbors,
-                    self_loop=self_loop, return_type=return_type)
+                    self_loop=self_loop, type=type)
     H = H.T
     if normalize:
-        H = normalize_graph(H, edge_weight, norm_type='hpnn')
+        H = normalize_graph(H, edge_weight, type='hpnn')
     return H
 
 
 def Build_hypergraph_spatial_and_HE(adata, num_neighbors=7, batch_size=4096, normalize=False, graph_kind='spatial',
-                                    return_type='coo', device="cpu"):
+                                    type='coo', device="cpu"):
     if graph_kind.lower() == 'spatial':
-        H1 = Build_graph(adata.obsm['spatial'], graph_type='knn', num_neighbors=num_neighbors, return_type=return_type)
+        H1 = Build_graph(adata.obsm['spatial'], graph_type='knn', num_neighbors=num_neighbors, type=type)
         H = H1.T
     elif graph_kind.lower() == 'he':
         H2 = Build_graph_for_high_dim_feat(adata.obsm['he'], num_neighbors=num_neighbors,
@@ -469,12 +469,12 @@ def Build_hypergraph_spatial_and_HE(adata, num_neighbors=7, batch_size=4096, nor
         assert False
 
     if normalize:
-        H = normalize_graph(H, norm_type='hpnn')
+        H = normalize_graph(H, type='hpnn')
 
-    if return_type == 'coo':
+    if type == 'coo':
         if not isinstance(H, sp.coo_matrix):
             H = H.tocoo()
-    elif return_type == 'crs':
+    elif type == 'crs':
         if not isinstance(H, sp.csr_matrix):
             H = H.tocsr()
     return H
@@ -493,23 +493,23 @@ def normalize_hypergraph(H, edge_weight=None):
 
 
 # 常规图归一化
-def normalize_graph(H, edge_weight=None, norm_type='gcn'):
-    if norm_type == 'row':
+def normalize_graph(H, edge_weight=None, type='gcn'):
+    if type == 'row':
         normalization_factors = sp.csr_matrix(1.0 / adj.sum(1))  # 行归一化
         adj = adj.multiply(normalization_factors)
-    elif norm_type == 'col':
+    elif type == 'col':
         normalization_factors = sp.csr_matrix(1.0 / adj.sum(0))  # 列归一化
         adj = adj.multiply(normalization_factors)
-    elif norm_type == 'both':
+    elif type == 'both':
         normalization_factors1 = sp.csr_matrix(1.0 / adj.sum(0))  # 列归一化
         normalization_factors2 = sp.csr_matrix(1.0 / adj.sum(1))  # 行归一化
         adj = adj.multiply(normalization_factors1)
         adj = adj.multiply(normalization_factors2)
-    elif norm_type == 'gcn':
+    elif type == 'gcn':
         D = np.squeeze(H.sum(1).A)
         D = sp.diags(np.power(D.astype(float), -0.5), offsets=0, format='coo')
         adj = D @ H @ D
-    elif norm_type == 'hpnn':
+    elif type == 'hpnn':
         DE = np.squeeze(H.sum(0).A)
         DV = np.squeeze(H.sum(1).A)
         DE = sp.diags(np.power(DE.astype(float), -1), offsets=0, format='csr')
@@ -615,7 +615,7 @@ class Xenium_HBRC_overlap(torch.utils.data.Dataset):
             self.he_dict[name] = he[self.roi_dict[name]]
             self.obs_dict[name] = adata.obs_names[self.roi_dict[name]].tolist()
 
-            sub_graph = normalize_graph(graph[self.roi_dict[name]][:, self.roi_dict[name]], norm_type=graph_norm)
+            sub_graph = normalize_graph(graph[self.roi_dict[name]][:, self.roi_dict[name]], type=graph_norm)
             self.graph_dict[name] = sparse_mx_to_torch_sparse_tensor(sub_graph)
 
             '''选择部分计算损失'''
