@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: SpatialEx
-Version: 0.1.4
+Version: 0.1.7
 Summary: computational frameworks that leverage histology as a universal anchor to integrate spatial molecular data across tissue sections
 Home-page: https://github.com/KEAML-JLU/SpatialEx
 Author: Yonghao Liu and Chuyao Wang
