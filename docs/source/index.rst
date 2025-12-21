@@ -31,4 +31,9 @@ Recent advances in spatial omics technologies enable in situ molecular profiling
 
 Citation
 ========
-x
+@article{liu2025high,
+  title={High-Parameter Spatial Multi-Omics through Histology-Anchored Integration},
+  author={Liu, Yonghao and Wang, Chuyao and Wang, Zhikang and Chen, Liang and Li, Zhi and Song, Jiangning and Zou, Qi and Gao, Rui and Qian, Binzhi and Feng, Xiaoyue and others},
+  journal={Nature Methods},
+  year={2025}
+}
